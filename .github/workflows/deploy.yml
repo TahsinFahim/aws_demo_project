@@ -1,45 +1,32 @@
-name: Deploy Laravel to EC2
+- name: Deploy via SSH
+  uses: appleboy/ssh-action@v1.0.0
+  with:
+    host: ${{ secrets.EC2_HOST }}
+    username: ${{ secrets.EC2_USER }}
+    key: ${{ secrets.EC2_KEY }}
+    script: |
+      cd /var/www/laravel
 
-on:
-  push:
-    branches: [ main ]
+      # Mark safe directory
+      git config --global --add safe.directory /var/www/laravel
 
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
+      # Pull latest code
+      git reset --hard   # discard local changes to avoid pull fail
+      git pull origin main
 
-    steps:
-    - name: Checkout Code
-      uses: actions/checkout@v4
+      # Permissions
+      sudo chown -R www-data:www-data /var/www/laravel
+      sudo chmod -R 775 /var/www/laravel/storage /var/www/laravel/bootstrap/cache
+      sudo chmod -R 755 /var/www/laravel
 
-    - name: Deploy via SSH
-      uses: appleboy/ssh-action@v1.0.0
-      with:
-        host: ${{ secrets.EC2_HOST }}
-        username: ${{ secrets.EC2_USER }}
-        key: ${{ secrets.EC2_KEY }}
-       # Build Vite assets AFTER Node.js is installed on EC2
-        script: |
-          cd /var/www/laravel
+      # Composer & Laravel
+      sudo -u www-data composer install --no-dev --optimize-autoloader
+      sudo -u www-data php artisan migrate --force
+      sudo -u www-data php artisan config:cache
+      sudo -u www-data php artisan route:cache
+      sudo -u www-data php artisan optimize
+      sudo -u www-data php artisan view:clear
 
-          # Mark safe directory
-          git config --global --add safe.directory /var/www/laravel
-
-          # Pull latest code
-          git pull origin main
-
-          # Set proper permissions
-          sudo chown -R ubuntu:www-data /var/www/laravel
-          sudo chmod -R 775 /var/www/laravel/storage /var/www/laravel/bootstrap/cache
-          sudo chmod -R 755 /var/www/laravel
-
-          # Composer & Laravel
-          sudo -u www-data composer install --no-dev --optimize-autoloader
-          sudo -u www-data php artisan migrate --force
-          sudo -u www-data php artisan config:cache
-          sudo -u www-data php artisan route:cache
-          sudo -u www-data php artisan optimize
-
-          # Build Vite assets (requires Node.js)
-          npm install
-          npm run build
+      # Vite build
+      npm install
+      npm run build
