@@ -41,3 +41,6 @@ jobs:
           sudo -u www-data php artisan config:cache
           sudo -u www-data php artisan route:cache
           sudo -u www-data php artisan optimize
+          # Build Vite assets
+          npm install
+          npm run build
